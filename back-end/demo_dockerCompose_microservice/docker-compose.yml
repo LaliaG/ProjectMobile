@@ -1,0 +1,108 @@
+version : "3.3"
+
+networks:
+  project:
+ 
+volumes:
+  mysql_data:
+  mongo_data:
+
+services:
+  # Database
+  sql:
+    container_name: sql
+    image: mysql
+    restart: always
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: projet_mobile
+    networks:
+      - project
+    volumes:
+      - $HOME/docker/volumes/mysql:/var/lib/mysql mysql
+      # - ./_database/script.sql:/docker-entrypoint-initdb.d/script.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 5s
+      retries: 10
+
+ 
+  mongo:
+    image: mongo
+    restart: always
+    ports:
+      - 27018:27017
+    networks:
+      - project
+ 
+  #Back
+  gateway:
+    container_name: gateway
+    ports:
+      - 8080:8080
+    networks:
+      - project
+    environment:
+      PORT_AUTH : "8085"
+      PORT_USER : "8083"
+      PORT_COMM : "8084"
+      PORT_CAR_RIDE : "8082"
+    build:
+      context: ./gateway
+      dockerfile: .dockerfile
+
+
+  delibery:
+    container_name: delibery
+    ports:
+      - 8082:8082
+    environment:
+      URL_DATABASE: jdbc:mysql://sql:3306/covoiturage_app 
+      DATABASE_USERNAME: root
+      DATABASE_PASSWORD: Laliayou19
+      PORT_CARRIDE: 8082
+    networks:
+      - project
+    build:
+      context: ./order
+      dockerfile: .dockerfile
+    depends_on:
+      sql:
+        condition: service_healthy
+
+  
+  stock:
+    container_name: stock
+    ports:
+      - 8084:8084
+    environment:
+      MONGO_URL: mongodb://mongo:27017 
+      PORT_COMM: 8084
+    networks:
+      - project
+    build:
+      context: ./CommentService
+      dockerfile: .dockerfile
+    depends_on:
+      - mongo
+
+
+  authen:
+    container_name: auth
+    ports:
+      - 8085:8085
+    environment:
+      URL_DATABASE: jdbc:mysql://sql:3306/projet_mobile
+      DATABASE_USERNAME: root
+      DATABASE_PASSWORD: Laliayou19
+      PORT_AUTH: 8085
+    networks:
+      - project
+    build:
+      context: ./AuthenticationService
+      dockerfile: .dockerfile
+    depends_on:
+      sql:
+        condition: service_healthy
